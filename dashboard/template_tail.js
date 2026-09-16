@@ -209,7 +209,7 @@ function renderWalls(S) {
 }
 
 const TICKERS = ["SPY", "QQQ", "NVDA", "AAPL", "GOOG", "MSFT", "AMZN", "SPCX", "META", "MU", "TSM"].filter((t) => SNAPSHOTS[t]);
-let currentTicker = SNAPSHOTS["NVDA"] ? "NVDA" : TICKERS[0];
+let currentTicker = SNAPSHOTS["SPY"] ? "SPY" : TICKERS[0];
 let currentExpiry = null;
 
 function expiriesFor(tk) {
