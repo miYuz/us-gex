@@ -30,8 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import stock_gex as sg
 
 TICKERS = ["SPY", "QQQ", "NVDA", "AAPL", "GOOG", "MSFT", "AMZN", "SPCX", "META", "MU", "TSM"]
-MAX_SHORT = 4      # 每個標的抓最近 N 個到期日(通常涵蓋 0DTE + 幾個週選)
-MAX_TOTAL = 5       # 再補最近的月選,總共最多幾檔
+MAX_TOTAL = 3       # 每個標的留最近的到期日 + 2 個週選,月選拿掉(流動性/實用度較低)
+LOOKOUT = 8         # 篩掉月選前,先看最近幾個原始到期日,避免月選卡在很前面時湊不滿 3 檔
 MIN_OK_TICKERS = 6  # 少於這個成功標的數,視為這次抓取品質太差,不覆寫網站
 
 REQUEST_RETRIES = 3
@@ -47,11 +47,12 @@ def is_monthly(iso):
 
 
 def pick_expiries(all_expiries):
-    short = list(all_expiries[:MAX_SHORT])
-    monthly = next((e for e in all_expiries if is_monthly(e)), None)
-    if monthly and monthly not in short:
-        short.append(monthly)
-    return short[:MAX_TOTAL]
+    """最近到期日 + 2 個週選,不含月選。如果篩掉月選後湊不滿 3 檔(該標的可能只有
+    月選可選),就退回原始清單,至少有東西可看,不要開天窗。"""
+    non_monthly = [e for e in all_expiries[:LOOKOUT] if not is_monthly(e)]
+    if len(non_monthly) < MAX_TOTAL:
+        return list(all_expiries[:MAX_TOTAL])
+    return non_monthly[:MAX_TOTAL]
 
 
 def tag_for(iso, dte):
