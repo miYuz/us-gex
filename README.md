@@ -89,10 +89,11 @@ python build_dashboard.py docs/index.html
 
 ---
 
-## 每日自動更新
+## 自動更新
 
-[`.github/workflows/daily.yml`](.github/workflows/daily.yml) 排三個時段
-(台北 06:00 主要、08:30 / 11:00 備援,GitHub 的排程是 best-effort,錯開時段
+[`.github/workflows/daily.yml`](.github/workflows/daily.yml) 只在**台北時間週二~週六
+早上**排三個時段(06:00 主要、08:30 / 11:00 備援 —— 台北週日/週一早上對應美股
+週六/週日,沒有新交易日資料,不用跑。GitHub 的排程是 best-effort,錯開時段
 + 重試機制避免被延遲、丟掉,或被 Yahoo 限流卡住)。冪等設計:資料有實際內容
 才會 commit,抓取失敗不會覆寫既有網站。
 
