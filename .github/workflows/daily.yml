@@ -1,0 +1,71 @@
+name: Daily update
+
+# GitHub 的 cron 是 UTC,台北 = UTC+8,沒有日光節約。
+#
+# 使用者要求:主要在台北 06:00 更新,08:30 / 11:00 當備援。排三個時段的理由跟
+# taifex-gex 一樣:GitHub 的排程是 best-effort,尖峰時會延遲甚至整個丟掉;這裡
+# 還多一層理由 —— yfinance 在 GitHub Actions 共用 runner IP 上偶爾被 Yahoo 限流,
+# 08:30 / 11:00 也是給 06:00 沒抓好時的重試機會。錯開到 :05/:35/:05 這種非整點
+# 分鐘,避開大家都排在整點的尖峰。
+#
+# 冪等設計:build_dashboard.py 只有在夠多標的成功時才會覆寫 docs/index.html;
+# 抓取品質不足就直接不寫檔,這裡的 commit 判斷自然就跳過,網站維持上一次的好版本。
+on:
+  schedule:
+    - cron: "5 22 * * *"    # 台北 06:05 — 主要時段
+    - cron: "35 0 * * *"    # 台北 08:35 — 備援
+    - cron: "5 3 * * *"     # 台北 11:05 — 最後一道
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: 抓最新選擇權資料並重建儀表板
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python build_dashboard.py docs/index.html
+
+      - name: 有變動才 commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "沒有新內容可 commit(可能是這次抓取品質不足,build_dashboard.py 沒有覆寫檔案)"
+            git reset -q
+            exit 0
+          fi
+          git commit -m "資料更新 $(date -u -d '+8 hours' +'%Y-%m-%d %H:%M') 台北時間
+
+          由 GitHub Actions 自動執行。"
+          git push
+
+      # 這一段一定要留在這個 workflow 裡,不能指望另一個 push 觸發的 workflow:
+      # GitHub 為了防止無限迴圈,「用 GITHUB_TOKEN 推的 commit 不會觸發其他
+      # workflow」。所以上面 push 完之後不會有別的 workflow 接手部署。
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - uses: actions/deploy-pages@v4

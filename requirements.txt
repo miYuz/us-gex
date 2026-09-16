@@ -1,0 +1,4 @@
+yfinance>=0.2.40
+pandas>=1.5
+numpy>=1.23
+scipy>=1.7      # gamma/常態分布
