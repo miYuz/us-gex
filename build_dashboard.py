@@ -99,8 +99,11 @@ def build_one(ticker, expiry):
 
     return {
         "ticker": ticker,
-        "date": dt.datetime.now(dt.timezone.utc).astimezone(
-            dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M (台北)"),
+        # 顯示一律用美東時間(ET):到期日、dte、盤別全都是美股的時間概念,時間戳記
+        # 混用台北會讓人要自己換算。built_utc 是給看門狗讀的(它要換成台北日期,
+        # 判斷「今天這個台北早上更新過了沒」),不顯示在頁面上。
+        "date": f"{sg.now_et():%Y-%m-%d %H:%M} ET",
+        "built_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "spot": round(float(spot), 2),
         "expiry": expiry,
         "dte": int(dte),
@@ -158,7 +161,7 @@ def build(out_path=None, verbose=True):
     tail = open(os.path.join(TPL_DIR, "template_tail.js"), encoding="utf-8").read()
 
     now_tw = dt.datetime.now(dt.timezone.utc).astimezone(dt.timezone(dt.timedelta(hours=8)))
-    head = _patch_footer(head, snapshots, now_tw)
+    head = _patch_footer(head, snapshots, now_tw, sg.now_et())
 
     data_js = "const SNAPSHOTS = " + json.dumps(snapshots, ensure_ascii=False, separators=(",", ":")) + ";"
     html = head + "\n<script>\n" + data_js + "\n" + tail + "\n</" + "script>\n"
@@ -171,11 +174,12 @@ def build(out_path=None, verbose=True):
     return out_path
 
 
-def _patch_footer(head, snapshots, now_tw):
+def _patch_footer(head, snapshots, now_tw, now_et):
     n_ok = len(snapshots)
     n_total = len(TICKERS)
     new = (f"資料每天台北時間 06:00 更新(08:30 / 11:00 為備援,遇 Yahoo 限流才會補跑)。"
-           f"本次建置 {now_tw:%Y-%m-%d %H:%M} 台北時間,{n_ok}/{n_total} 個標的成功。"
+           f"本次建置 ET {now_et:%Y-%m-%d %H:%M}(台北 {now_tw:%Y-%m-%d %H:%M}),"
+           f"{n_ok}/{n_total} 個標的成功。"
            f"本頁僅作市場結構說明,<b>不構成投資建議</b>。資料來源:yfinance(Yahoo Finance 公開行情)。")
     return re.sub(r'<div id="footerBuild">.*?</div>',
                   f'<div id="footerBuild">{new}</div>', head, flags=re.S)

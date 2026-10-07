@@ -34,6 +34,29 @@ def gamma_bs(S, K, T, sigma, r=RISK_FREE, q=0.0):
     return math.exp(-q * T) * norm.pdf(d1) / (S * sigma * math.sqrt(T))
 
 
+def now_et():
+    """現在的美東時間(自動處理夏令/冬令)。"""
+    return pd.Timestamp.now(tz="America/New_York")
+
+
+def session_date(now=None):
+    """這張快照對應的美股交易日(ET 日期),用來當 dte 的起算日。
+
+    已過 ET 16:00 收盤(或週末)的快照,最近一個還能交易的是「下一個交易日」——
+    yfinance 這時也已經把剛到期的鏈拿掉,最近到期日就是那個交易日當天到期的
+    (它的 0DTE)。不能直接拿執行環境的本地日期:GitHub 的機器是 UTC、本機是台北,
+    同一個時間點會差一天,dte 與「0DTE」標籤就會跟著排程時段跳動。
+    只看週末、不處理美股休市日(休市日 yfinance 本來就沒有那天到期的鏈)。
+    """
+    now = now if now is not None else now_et()
+    d = now.date()
+    if now.hour >= 16:
+        d += pd.Timedelta(days=1)
+    while d.weekday() >= 5:
+        d += pd.Timedelta(days=1)
+    return d
+
+
 def fetch_chain(ticker, expiry=None, verbose=True):
     """回傳 (spot, expiry_used, dte, calls_df, puts_df)。expiry=None 取最近到期日。"""
     import yfinance as yf
@@ -48,7 +71,7 @@ def fetch_chain(ticker, expiry=None, verbose=True):
         raise ValueError(f"{expiry} 不是有效到期日,可用: {expiries}")
 
     oc = t.option_chain(expiry)
-    dte = max((pd.Timestamp(expiry) - pd.Timestamp.today().normalize()).days, 0)
+    dte = max((pd.Timestamp(expiry).date() - session_date()).days, 0)
     if verbose:
         print(f"{ticker}  spot={spot:.2f}  expiry={expiry}  dte={dte}  "
              f"calls={len(oc.calls)} puts={len(oc.puts)}")
