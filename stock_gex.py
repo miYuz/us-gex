@@ -40,20 +40,21 @@ def now_et():
 
 
 def session_date(now=None):
-    """這張快照對應的美股交易日(ET 日期),用來當 dte 的起算日。
+    """dte 的起算日:最近一次收盤(ET 16:00)那個交易日的 ET 日期。
 
-    已過 ET 16:00 收盤(或週末)的快照,最近一個還能交易的是「下一個交易日」——
-    yfinance 這時也已經把剛到期的鏈拿掉,最近到期日就是那個交易日當天到期的
-    (它的 0DTE)。不能直接拿執行環境的本地日期:GitHub 的機器是 UTC、本機是台北,
-    同一個時間點會差一天,dte 與「0DTE」標籤就會跟著排程時段跳動。
-    只看週末、不處理美股休市日(休市日 yfinance 本來就沒有那天到期的鏈)。
+    快照反映的是收盤那一刻的狀態,時間價值就要從收盤算起,不能往後順延到下一個
+    交易日——順延會少算一天(週五收盤的快照甚至少算整個週末),時間價值被低估。
+    所以:週一~五 16:00 之後 = 當天;16:00 之前 = 前一個交易日;週末 = 週五。
+    也不能直接拿執行環境的本地日期:GitHub 的機器是 UTC、本機是台北,同一個時間點
+    會差一天,dte 就會跟著排程時段跳動。
+    只看週末、不處理美股休市日。
     """
     now = now if now is not None else now_et()
     d = now.date()
-    if now.hour >= 16:
-        d += pd.Timedelta(days=1)
+    if now.hour < 16:
+        d -= pd.Timedelta(days=1)
     while d.weekday() >= 5:
-        d += pd.Timedelta(days=1)
+        d -= pd.Timedelta(days=1)
     return d
 
 
